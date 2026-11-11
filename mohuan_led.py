@@ -4,9 +4,10 @@ Requisitos: Python 3.9+ e `pip install bleak`
 Execute:    python mohuan_led.py
 
 Protocolo (cabecalho 69 96), baseado no repo MohuanLED-Bluetooth_LED:
-  ligar 69 96 02 01 01 | desligar 69 96 02 01 00
+  ligar 69 96 06 01 01 (e/ou 69 96 02 01 01) | desligar 69 96 02 01 00
   cor   69 96 05 02 R G B
-  modo  69 96 03 04 <modo> <velocidade>   (EXPERIMENTAL, nao validado)
+  modo  69 96 03 <banco> <modo> <velocidade>
+        banco 3: modos 0-21 | banco 4: modos 0-9 | velocidade 1 (rapido) a 10 (lento)
 """
 import asyncio
 import colorsys
@@ -20,7 +21,8 @@ from bleak import BleakClient, BleakScanner
 
 PREFIX = "BJ_LED"  # BJ_LED, BJ_LED_M, BJ_LED_HC, BJ_LED_MHC
 PREFERRED_CHAR = "0000ee02-0000-1000-8000-00805f9b34fb"
-ON = bytes.fromhex("6996020101")
+ON_A = bytes.fromhex("6996060101")  # usado pelo repo 8none1/bj_led
+ON_B = bytes.fromhex("6996020101")  # usado pelo repo MohuanLED-Bluetooth_LED (BJ_LED_M)
 OFF = bytes.fromhex("6996020100")
 
 
@@ -98,15 +100,20 @@ class Led:
     # ---- comandos -------------------------------------------------------
     async def power(self, on: bool):
         await self._cancel_effect()
-        await self.write(ON if on else OFF)
+        if on:
+            await self.write(ON_A)
+            await asyncio.sleep(0.1)
+            await self.write(ON_B)
+        else:
+            await self.write(OFF)
 
     async def send_rgb(self, r, g, b, brightness=255):
         k = brightness / 255
         await self.write(bytes([0x69, 0x96, 0x05, 0x02, int(r * k), int(g * k), int(b * k)]))
 
-    async def mode(self, mode, speed):
+    async def mode(self, bank, mode, speed):
         await self._cancel_effect()
-        await self.write(bytes([0x69, 0x96, 0x03, 0x04, mode, speed]))
+        await self.write(bytes([0x69, 0x96, 0x03, bank, mode, speed]))
 
     def push_color(self, rgb, brightness):
         """Chamado pela UI (qualquer thread); junta movimentos rapidos do slider."""
@@ -219,13 +226,16 @@ class App(tk.Tk):
 
         mbox = ttk.LabelFrame(self, text="Modos da fita (experimental)")
         mbox.pack(fill="x", **pad)
+        self.bank_v = tk.IntVar(value=3)
         self.mode_v = tk.IntVar(value=0)
         self.speed_v = tk.IntVar(value=5)
-        ttk.Label(mbox, text="Modo").grid(row=0, column=0, sticky="w")
-        ttk.Spinbox(mbox, from_=0, to=21, width=5, textvariable=self.mode_v).grid(row=0, column=1)
-        ttk.Label(mbox, text="Velocidade (1 rapido - 10 lento)").grid(row=1, column=0, sticky="w")
-        ttk.Spinbox(mbox, from_=1, to=10, width=5, textvariable=self.speed_v).grid(row=1, column=1)
-        ttk.Button(mbox, text="Aplicar", command=self._mode).grid(row=0, column=2, rowspan=2, padx=8)
+        ttk.Label(mbox, text="Banco (3: modos 0-21 | 4: modos 0-9)").grid(row=0, column=0, sticky="w")
+        ttk.Spinbox(mbox, from_=3, to=4, width=5, textvariable=self.bank_v).grid(row=0, column=1)
+        ttk.Label(mbox, text="Modo").grid(row=1, column=0, sticky="w")
+        ttk.Spinbox(mbox, from_=0, to=21, width=5, textvariable=self.mode_v).grid(row=1, column=1)
+        ttk.Label(mbox, text="Velocidade (1 rapido - 10 lento)").grid(row=2, column=0, sticky="w")
+        ttk.Spinbox(mbox, from_=1, to=10, width=5, textvariable=self.speed_v).grid(row=2, column=1)
+        ttk.Button(mbox, text="Aplicar", command=self._mode).grid(row=0, column=2, rowspan=3, padx=8)
 
         ebox = ttk.LabelFrame(self, text="Efeitos (no PC)")
         ebox.pack(fill="x", **pad)
@@ -267,7 +277,9 @@ class App(tk.Tk):
             self._color()
 
     def _mode(self):
-        self._run(self.led.mode(self.mode_v.get(), self.speed_v.get()))
+        bank = self.bank_v.get()
+        mode = min(self.mode_v.get(), 9 if bank == 4 else 21)
+        self._run(self.led.mode(bank, mode, self.speed_v.get()))
 
     def _poll(self):
         while True:
