@@ -53,19 +53,19 @@ Os pacotes têm o cabeçalho `69 96`:
 
 | Função | Bytes |
 | --- | --- |
-| Ligar | `69 96 02 01 01` |
+| Ligar | `69 96 06 01 01` e `69 96 02 01 01` (o app envia os dois) |
 | Desligar | `69 96 02 01 00` |
 | Cor | `69 96 05 02 R G B` |
-| Modo | `69 96 03 04 <modo> <velocidade>` (experimental) |
+| Modo | `69 96 03 <banco> <modo> <velocidade>` (banco 3: modos 0–21; banco 4: modos 0–9; velocidade 1 rápido a 10 lento) |
 
 O serviço BLE esperado é `0000ee01-0000-1000-8000-00805f9b34fb` e a característica de escrita preferida é `0000ee02-0000-1000-8000-00805f9b34fb`. Se ela não existir, o programa usa outra característica de escrita.
 
-Os comandos foram levantados a partir do repositório [MohuanLED-Bluetooth_LED](https://github.com/Walkercito/MohuanLED-Bluetooth_LED) e da análise do app Android original (`com.kimoji.flutter.bleled`, versão 1.4.6).
+Os comandos foram levantados a partir dos repositórios [MohuanLED-Bluetooth_LED](https://github.com/Walkercito/MohuanLED-Bluetooth_LED) e [8none1/bj_led](https://github.com/8none1/bj_led) e da análise do app Android original (`com.kimoji.flutter.bleled`, versão 1.4.6).
 
 ## Limitações
 
 - Não testado com hardware real.
-- Os números dos modos (0–21) seguem anotações ambíguas do repositório de referência; confira o que cada um faz na sua fita. O mapeamento fica em `Led.mode()`.
+- Os modos seguem as anotações dos repositórios de referência (que divergem entre `03 03` e `03 04`, daí o campo "banco"); confira o que cada um faz na sua fita. O envio fica em `Led.mode()`.
 - Variantes HC podem usar outra ordem de cores (por exemplo GRB). Se vermelho aparecer verde, ajuste a ordem em `Led.send_rgb()`.
 - Os efeitos de arco-íris, respiração e strobe são feitos no PC, enviando uma cor por vez, então dependem da conexão e podem variar em suavidade.
 - Ainda não implementado: efeito reativo a som, timers/relógio e grupos de dispositivos do app original.
